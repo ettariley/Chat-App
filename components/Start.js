@@ -115,6 +115,7 @@ const startStyles = StyleSheet.create({
   optionsContainer: {
     flex: 0.44,
     width: '88%',
+    minHeight: 215,
     alignItems: 'center',
     justifyContent: 'space-evenly',
     backgroundColor: '#FFFFFF',
