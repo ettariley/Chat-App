@@ -1,68 +1,39 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, 
+  View,
   Text,
   Platform,
   KeyboardAvoidingView,
-  Button,
-  Alert,
+  StyleSheet,
 } from 'react-native';
-import { GiftedChat, Bubble, InputToolbar } from 'react-native-gifted-chat';
-import { getApp, getApps, initializeApp } from 'firebase/app';
+import {
+  GiftedChat,
+  Bubble,
+  InputToolbar,
+} from 'react-native-gifted-chat';
 import {
   onSnapshot,
   query,
   orderBy,
   addDoc,
   collection,
-  getFirestore,
 } from 'firebase/firestore';
-import {
-  getAuth,
-  initializeAuth,
-  getReactNativePersistence,
-  onAuthStateChanged,
-  signInAnonymously,
-} from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { async } from '@firebase/util';
+import MapView from 'react-native-maps';
+import CustomActions from './CustomActions';
+import { db, auth } from './firebase/firebase-config';
 
 export default function Chat(props) {
   // Initialize props passed in from navigator
   let { name, chatBackground } = props.route.params;
   const { navigation } = props;
 
-  // Initialize messages and user uid states
+  // Initialize states
   const [messages, setMessages] = useState([]);
   const [uid, setUid] = useState('');
   const [isConnected, setIsConnected] = useState();
-
-  // Config information
-  const firebaseConfig = {
-    apiKey: 'AIzaSyBXYcGsXU-n-QTqNDBOFB3J2FdgzthK5Bo',
-    authDomain: 'chatapp-53949.firebaseapp.com',
-    projectId: 'chatapp-53949',
-    storageBucket: 'chatapp-53949.appspot.com',
-    messagingSenderId: '399680179484',
-    appId: '1:399680179484:web:cfd5870a173f6ffeb87ed9',
-  };
-
-  // Initialize firebase app
-  let app;
-  let auth;
-
-  // Check if app has been initialized already & initialize if not
-  if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-  } else {
-    app = getApp();
-    auth = getAuth(app);
-  }
-  const db = getFirestore(app);
 
   // Reference to Firestore messages collection
   const referenceChatMessages = collection(db, 'messages');
@@ -87,21 +58,12 @@ export default function Chat(props) {
     }
   };
 
-  // Delete messages in storage (for testing)
-  const deleteStoredMessages = async () => {
-    try {
-      await AsyncStorage.removeItem('messages');
-      // setMessages([]);
-    } catch (error) {
-      console.log(error.message);
-    }
-  };
-
   // Make page title the name passed in
   useEffect(() => {
     navigation.setOptions({ title: name });
   }, [navigation, name]);
 
+  // Initial Online Check, Authentication, Getting messages from Database
   useEffect(() => {
     // Check if online
     NetInfo.fetch().then((connection) => {
@@ -136,7 +98,6 @@ export default function Chat(props) {
         authUnsubscribe();
       };
     } else {
-      // alertOffline();
       getStoredMessages();
     }
   }, [isConnected]); // Use effect listening for change in online status
@@ -151,6 +112,8 @@ export default function Chat(props) {
         text: data.text,
         createdAt: data.createdAt.toDate(),
         user: data.user,
+        image: data.image,
+        location: data.location,
       });
     });
     setMessages(messagesarray);
@@ -161,32 +124,22 @@ export default function Chat(props) {
   const addMessages = (message) => {
     addDoc(referenceChatMessages, {
       _id: message._id,
-      text: message.text,
+      text: message.text || '',
       createdAt: message.createdAt,
       user: message.user,
+      image: message.image || null,
+      location: message.location || null,
     });
   };
 
   // Append new message to messages state and call function to add to Firestore collection
   const onSend = useCallback((messages = []) => {
-    setMessages((previousMessages) => GiftedChat.append(previousMessages, messages));
+    console.log(messages);
+    setMessages((previousMessages) =>
+      GiftedChat.append(previousMessages, messages)
+    );
     addMessages(messages[0]);
   }, []);
-
-  
-
-  // Display alert if offline
-  const alertOffline = () => {
-    Alert.alert(
-      'Offline',
-      "You are offline. You can see previously saved messages, but can't send any new ones until you are back online.",
-      [
-        {
-          text: 'OK',
-        },
-      ]
-    );
-  };
 
   // Change color of the message bubbles
   const renderBubble = (props) => {
@@ -213,25 +166,61 @@ export default function Chat(props) {
     }
   };
 
+  // Configure custom actions
+  const renderActions = (props) => {
+    return <CustomActions {...props} />;
+  };
+
+  // Render custom view for location messages
+  const renderCustomView = (props) => {
+    const { currentMessage } = props;
+    // send custom map view if location is sent through
+    if (currentMessage.location) {
+      return (
+        <MapView
+          style={{
+            width: 150,
+            height: 100,
+            borderRadius: 13,
+            margin: 3,
+          }}
+          region={{
+            latitude: currentMessage.location.latitude,
+            longitude: currentMessage.location.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }}
+        />
+      );
+    }
+    return null;
+  };
+
   return (
+    // Main container (styles are inline to pass through chatBackground option)
     <View
       style={{
         flex: 1,
         backgroundColor: chatBackground,
       }}
     >
-      {isConnected ? null : (
-        <Text style={{color: "red"}}>You are offline.</Text>
+      {/* Connection indicator */}
+      {isConnected ? (
+        <Text style={[chatStyles.onlineIndication, chatStyles.online]}>
+          You are online and ready to chat.
+        </Text>
+      ) : (
+        <Text style={[chatStyles.onlineIndication, chatStyles.offline]}>
+          You are offline. You can see stored messages but cannot send new ones.
+        </Text>
       )}
-      <Button
-        onPress={() => deleteStoredMessages()}
-        title="Clear Saved Messages"
-        color="#848884"
-        accessibilityLabel="Clicking this button clears messages from local storage."
-      />
+      
+      {/* Gifted chat UI */}
       <GiftedChat
         renderBubble={renderBubble.bind()}
         renderInputToolbar={renderInputToolbar.bind()}
+        renderActions={renderActions}
+        renderCustomView={renderCustomView}
         messages={messages}
         onSend={(messages) => onSend(messages)}
         user={{
@@ -239,7 +228,7 @@ export default function Chat(props) {
           name: name,
         }}
       />
-    
+
       {/* If platform is android, make sure to move the UI with the keyboard */}
       {Platform.OS === 'android' ? (
         <KeyboardAvoidingView behavior="height" />
@@ -247,3 +236,16 @@ export default function Chat(props) {
     </View>
   );
 }
+
+const chatStyles = StyleSheet.create({
+  onlineIndication: {
+    textAlign: 'center',
+    justifyContent: 'center',
+  },
+  offline: {
+    color: 'red',
+  },
+  online: {
+    color: 'white',
+  },
+});
