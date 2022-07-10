@@ -1,6 +1,7 @@
 # Chat App
 
 ### This is a react-native project utilizing expo for testing.
+Messages and images are stored utilizing Firebase Firestore and storage.
 
 In this app, you can send text messages, images (take a new photo or choose from libary), and your location to a group chat.
 
