@@ -100,7 +100,6 @@ export default function Start(props) {
 const startStyles = StyleSheet.create({
   startContainer: {
     flex: 1,
-    // backgroundColor: 'gray'
   },
   backgroundImage: {
     flex: 1,
