@@ -1,6 +1,6 @@
 # Chat App
 
-###This is a react-native project utilizing expo for testing.
+### This is a react-native project utilizing expo for testing.
 
 In this app, you can send text messages, images (from libary or taking a new photo), and your location to a group chat.
 
